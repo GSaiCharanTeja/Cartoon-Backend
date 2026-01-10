@@ -52,3 +52,18 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+
+app.post("/like", async (req, res) => {
+  console.log(req.body); // 👈 ADD THIS LINE
+
+  const { name } = req.body;
+
+  await Like.findOneAndUpdate(
+    { name },
+    { $inc: { count: 1 } },
+    { upsert: true }
+  );
+
+  res.json({ success: true });
+});
