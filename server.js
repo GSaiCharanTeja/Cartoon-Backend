@@ -6,37 +6,49 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// TEMP local DB (will change later)
-mongoose.connect(process.env.MONGO_URI)
+// ✅ MongoDB Atlas connection (from Render env variable)
+mongoose
+  .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected"))
-  .catch(err => console.log(err));
+  .catch((err) => console.error(err));
 
-// Model
-const Like = mongoose.model("Like", {
+// Schema
+const LikeSchema = new mongoose.Schema({
   name: String,
-  count: { type: Number, default: 0 }
+  count: {
+    type: Number,
+    default: 0,
+  },
 });
 
-// Like route
+const Like = mongoose.model("Like", LikeSchema);
+
+// Test route
+app.get("/", (req, res) => {
+  res.send("Backend is running");
+});
+
+// Like API
 app.post("/like", async (req, res) => {
   const { name } = req.body;
 
   await Like.findOneAndUpdate(
     { name },
     { $inc: { count: 1 } },
-    { upsert: true }
+    { upsert: true, new: true }
   );
 
-  res.send("Liked");
+  res.json({ success: true });
 });
 
-// Admin route
+// Admin API (only you should use this)
 app.get("/admin", async (req, res) => {
   const data = await Like.find();
   res.json(data);
 });
 
-// Start server
-app.listen(3000, () => {
-  console.log("Server running at http://localhost:3000");
+// Start server (Render uses PORT)
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
