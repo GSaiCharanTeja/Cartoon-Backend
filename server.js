@@ -20,11 +20,14 @@ mongoose
 /* ---------------- SCHEMA ---------------- */
 const LikeSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, unique: true },
-    count: { type: Number, default: 0 },
+    user: { type: String, required: true },
+    image: { type: String, required: true }
   },
   { timestamps: true }
 );
+
+// prevent same user liking same image twice
+LikeSchema.index({ user: 1, image: 1 }, { unique: true });
 
 const Like = mongoose.model("Like", LikeSchema);
 
@@ -34,35 +37,33 @@ app.get("/", (req, res) => {
 });
 
 /* ==================================================
-   LIKE API  (USED BY FRONTEND)
-   URL: https://cartoon-backend-2zjc.onrender.com/api/like
+   LIKE API (USED BY FRONTEND)
    METHOD: POST
+   BODY: { user, image }
 ================================================== */
 app.post("/api/like", async (req, res) => {
   try {
-    let { name } = req.body;
+    let { user, image } = req.body;
 
-    if (!name) {
-      return res.status(400).json({ error: "Name is required" });
+    if (!user || !image) {
+      return res.status(400).json({ error: "User and image are required" });
     }
 
-    // normalize input
-    name = name.toLowerCase().trim();
+    user = user.trim().toLowerCase();
+    image = image.trim().toLowerCase();
 
-    const result = await Like.findOneAndUpdate(
-      { name },
-      { $inc: { count: 1 } },
-      {
-        upsert: true,
-        new: true,
-        setDefaultsOnInsert: true,
-      }
-    );
+    const alreadyLiked = await Like.findOne({ user, image });
+    if (alreadyLiked) {
+      return res.status(409).json({ error: "Already liked" });
+    }
+
+    await Like.create({ user, image });
 
     res.json({
       success: true,
-      name: result.name,
-      count: result.count,
+      message: "Like saved",
+      user,
+      image
     });
   } catch (err) {
     console.error("❌ LIKE API ERROR:", err);
@@ -71,16 +72,15 @@ app.post("/api/like", async (req, res) => {
 });
 
 /* ==================================================
-   ADMIN API (VIEW COUNTS)
-   URL: https://cartoon-backend-2zjc.onrender.com/api/admin
+   ADMIN API (VIEW ALL LIKES)
    METHOD: GET
 ================================================== */
 app.get("/api/admin", async (req, res) => {
   try {
     const data = await Like.find(
       {},
-      { _id: 0, name: 1, count: 1 }
-    ).sort({ name: 1 });
+      { _id: 0, user: 1, image: 1, createdAt: 1 }
+    ).sort({ createdAt: -1 });
 
     res.json(data);
   } catch (err) {
