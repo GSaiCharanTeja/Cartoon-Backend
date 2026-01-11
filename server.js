@@ -7,10 +7,7 @@ app.use(cors());
 app.use(express.json());
 
 // 🔹 MongoDB connection
-mongoose.connect(process.env.MONGO_URI || "YOUR_MONGO_ATLAS_URL", {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-});
+mongoose.connect(process.env.MONGO_URI || "mongodb+srv://anything:save@cluster0.e0lxlj2.mongodb.net/?appName=Cluster0");
 
 // 🔹 Schema (IMPORTANT)
 const LikeSchema = new mongoose.Schema({
