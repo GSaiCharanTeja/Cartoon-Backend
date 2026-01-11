@@ -6,13 +6,19 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 🔹 MongoDB connection
-mongoose.connect(process.env.MONGO_URI || "mongodb+srv://anything:save@cluster0.e0lxlj2.mongodb.net/?appName=Cluster0");
+// 🔹 MongoDB connection (IMPORTANT: include database name)
+mongoose.connect(
+  process.env.MONGO_URI ||
+    "mongodb+srv://anything:save@cluster0.e0lxlj2.mongodb.net/test",
+  {
+    serverSelectionTimeoutMS: 5000,
+  }
+);
 
-// 🔹 Schema (IMPORTANT)
+// 🔹 Schema
 const LikeSchema = new mongoose.Schema({
   name: { type: String, required: true, unique: true },
-  count: { type: Number, default: 0 }
+  count: { type: Number, default: 0 },
 });
 
 const Like = mongoose.model("Like", LikeSchema);
@@ -22,21 +28,28 @@ app.get("/", (req, res) => {
   res.send("Backend is running");
 });
 
-// 🔹 Like API (FIXED)
+// 🔹 Like API (FIXED & NORMALIZED)
 app.post("/like", async (req, res) => {
-  const { name } = req.body;
+  try {
+    let { name } = req.body;
 
-  if (!name) {
-    return res.status(400).json({ error: "Name is required" });
+    if (!name) {
+      return res.status(400).json({ error: "Name is required" });
+    }
+
+    name = name.toLowerCase().trim(); // ⭐ FIX
+
+    const result = await Like.findOneAndUpdate(
+      { name },
+      { $inc: { count: 1 } },
+      { upsert: true, new: true }
+    );
+
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
   }
-
-  const result = await Like.findOneAndUpdate(
-    { name },
-    { $inc: { count: 1 }, $setOnInsert: { name } },
-    { upsert: true, new: true }
-  );
-
-  res.json(result);
 });
 
 // 🔹 Admin API
