@@ -26,7 +26,7 @@ const LikeSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// prevent same user liking same image twice
+// one user can like one image only once
 LikeSchema.index({ user: 1, image: 1 }, { unique: true });
 
 const Like = mongoose.model("Like", LikeSchema);
@@ -52,12 +52,15 @@ app.post("/api/like", async (req, res) => {
     user = user.trim().toLowerCase();
     image = image.trim().toLowerCase();
 
-    const alreadyLiked = await Like.findOne({ user, image });
-    if (alreadyLiked) {
-      return res.status(409).json({ error: "Already liked" });
+    try {
+      await Like.create({ user, image });
+    } catch (err) {
+      // duplicate like (already liked)
+      if (err.code === 11000) {
+        return res.status(409).json({ error: "Already liked" });
+      }
+      throw err;
     }
-
-    await Like.create({ user, image });
 
     res.json({
       success: true,
@@ -72,7 +75,7 @@ app.post("/api/like", async (req, res) => {
 });
 
 /* ==================================================
-   ADMIN API (VIEW ALL LIKES)
+   ADMIN API 1: VIEW ALL LIKES (DETAILED)
    METHOD: GET
 ================================================== */
 app.get("/api/admin", async (req, res) => {
@@ -85,6 +88,29 @@ app.get("/api/admin", async (req, res) => {
     res.json(data);
   } catch (err) {
     console.error("❌ ADMIN API ERROR:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/* ==================================================
+   ADMIN API 2: VIEW LIKE COUNTS PER IMAGE
+   METHOD: GET
+================================================== */
+app.get("/api/admin/counts", async (req, res) => {
+  try {
+    const counts = await Like.aggregate([
+      {
+        $group: {
+          _id: "$image",
+          totalLikes: { $sum: 1 }
+        }
+      },
+      { $sort: { totalLikes: -1 } }
+    ]);
+
+    res.json(counts);
+  } catch (err) {
+    console.error("❌ COUNT API ERROR:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
