@@ -6,20 +6,23 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 🔹 MongoDB connection (IMPORTANT: include database name)
-mongoose.connect(
-  process.env.MONGO_URI ||
-    "mongodb+srv://anything:save@cluster0.e0lxlj2.mongodb.net/test",
-  {
-    serverSelectionTimeoutMS: 5000,
-  }
-);
+// 🔹 MongoDB connection
+mongoose
+  .connect(
+    process.env.MONGO_URI ||
+      "mongodb+srv://anything:save@cluster0.e0lxlj2.mongodb.net/test"
+  )
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => console.error("MongoDB error:", err));
 
 // 🔹 Schema
-const LikeSchema = new mongoose.Schema({
-  name: { type: String, required: true, unique: true },
-  count: { type: Number, default: 0 },
-});
+const LikeSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, unique: true },
+    count: { type: Number, default: 0 },
+  },
+  { timestamps: true }
+);
 
 const Like = mongoose.model("Like", LikeSchema);
 
@@ -28,7 +31,7 @@ app.get("/", (req, res) => {
   res.send("Backend is running");
 });
 
-// 🔹 Like API (FIXED & NORMALIZED)
+// 🔹 Like API (FINAL & CORRECT)
 app.post("/like", async (req, res) => {
   try {
     let { name } = req.body;
@@ -37,25 +40,41 @@ app.post("/like", async (req, res) => {
       return res.status(400).json({ error: "Name is required" });
     }
 
-    name = name.toLowerCase().trim(); // ⭐ FIX
+    // 🔥 normalize input
+    name = name.toLowerCase().trim();
 
     const result = await Like.findOneAndUpdate(
       { name },
       { $inc: { count: 1 } },
-      { upsert: true, new: true }
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+      }
     );
 
-    res.json(result);
+    res.json({
+      success: true,
+      name: result.name,
+      count: result.count,
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
+    console.error("LIKE API ERROR:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
 // 🔹 Admin API
 app.get("/admin", async (req, res) => {
-  const data = await Like.find({}, { _id: 0, name: 1, count: 1 });
-  res.json(data);
+  try {
+    const data = await Like.find({}, { _id: 0, name: 1, count: 1 }).sort({
+      name: 1,
+    });
+    res.json(data);
+  } catch (err) {
+    console.error("ADMIN API ERROR:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // 🔹 Start server
