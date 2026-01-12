@@ -1,122 +1,63 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+require("dotenv").config();
+
+const Like = require("./models/Like");
 
 const app = express();
 
-/* ---------------- MIDDLEWARE ---------------- */
-app.use(cors());
-app.use(express.json());
+/* 🔹 Middlewares */
+app.use(cors());              // allow Netlify
+app.use(express.json());      // read JSON body
 
-/* ---------------- MONGODB CONNECTION ---------------- */
-mongoose
-  .connect(
-    process.env.MONGO_URI ||
-      "mongodb+srv://anything:save@cluster0.e0lxlj2.mongodb.net/test"
-  )
-  .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.error("❌ MongoDB error:", err));
+/* 🔹 MongoDB connection */
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB connected"))
+  .catch(err => console.error(err));
 
-/* ---------------- SCHEMA ---------------- */
-const LikeSchema = new mongoose.Schema(
-  {
-    user: { type: String, required: true },
-    image: { type: String, required: true }
-  },
-  { timestamps: true }
-);
-
-// one user can like one image only once
-LikeSchema.index({ user: 1, image: 1 }, { unique: true });
-
-const Like = mongoose.model("Like", LikeSchema);
-
-/* ---------------- HEALTH CHECK ---------------- */
+/* 🔹 Test route */
 app.get("/", (req, res) => {
-  res.send("✅ Backend is running");
+  res.send("Cartoon Backend is running");
 });
 
-/* ==================================================
-   LIKE API (USED BY FRONTEND)
-   METHOD: POST
-   BODY: { user, image }
-================================================== */
+/* 🔹 LIKE API (used by frontend) */
 app.post("/api/like", async (req, res) => {
   try {
-    let { user, image } = req.body;
+    const { user, image } = req.body;
 
     if (!user || !image) {
-      return res.status(400).json({ error: "User and image are required" });
+      return res.status(400).json({ error: "Missing data" });
     }
 
-    user = user.trim().toLowerCase();
-    image = image.trim().toLowerCase();
-
-    try {
-      await Like.create({ user, image });
-    } catch (err) {
-      // duplicate like (already liked)
-      if (err.code === 11000) {
-        return res.status(409).json({ error: "Already liked" });
-      }
-      throw err;
+    // Optional: prevent same user liking same image twice
+    const alreadyLiked = await Like.findOne({ user, image });
+    if (alreadyLiked) {
+      return res.status(409).json({ error: "Already liked" });
     }
 
-    res.json({
-      success: true,
-      message: "Like saved",
-      user,
-      image
-    });
+    await Like.create({ user, image });
+
+    res.json({ message: "Like saved" });
+
   } catch (err) {
-    console.error("❌ LIKE API ERROR:", err);
-    res.status(500).json({ error: "Internal server error" });
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
-/* ==================================================
-   ADMIN API 1: VIEW ALL LIKES (DETAILED)
-   METHOD: GET
-================================================== */
-app.get("/api/admin", async (req, res) => {
+/* 🔹 ADMIN: get all likes */
+app.get("/api/admin/likes", async (req, res) => {
   try {
-    const data = await Like.find(
-      {},
-      { _id: 0, user: 1, image: 1, createdAt: 1 }
-    ).sort({ createdAt: -1 });
-
-    res.json(data);
+    const likes = await Like.find().sort({ createdAt: -1 });
+    res.json(likes);
   } catch (err) {
-    console.error("❌ ADMIN API ERROR:", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "Server error" });
   }
 });
 
-/* ==================================================
-   ADMIN API 2: VIEW LIKE COUNTS PER IMAGE
-   METHOD: GET
-================================================== */
-app.get("/api/admin/counts", async (req, res) => {
-  try {
-    const counts = await Like.aggregate([
-      {
-        $group: {
-          _id: "$image",
-          totalLikes: { $sum: 1 }
-        }
-      },
-      { $sort: { totalLikes: -1 } }
-    ]);
-
-    res.json(counts);
-  } catch (err) {
-    console.error("❌ COUNT API ERROR:", err);
-    res.status(500).json({ error: "Internal server error" });
-  }
+/* 🔹 Start server */
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
-
-/* ---------------- START SERVER ---------------- */
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () =>
-  console.log(`🚀 Server running on port ${PORT}`)
-);
