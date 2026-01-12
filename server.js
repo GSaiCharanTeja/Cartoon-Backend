@@ -26,7 +26,7 @@ const LikeSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// prevent same user liking same image twice
+// one user can like one image only once
 LikeSchema.index({ user: 1, image: 1 }, { unique: true });
 
 const Like = mongoose.model("Like", LikeSchema);
@@ -37,9 +37,7 @@ app.get("/", (req, res) => {
 });
 
 /* ==================================================
-   LIKE API (USED BY FRONTEND)
-   METHOD: POST
-   BODY: { user, image }
+   LIKE API
 ================================================== */
 app.post("/api/like", async (req, res) => {
   try {
@@ -52,12 +50,15 @@ app.post("/api/like", async (req, res) => {
     user = user.trim().toLowerCase();
     image = image.trim().toLowerCase();
 
-    const alreadyLiked = await Like.findOne({ user, image });
-    if (alreadyLiked) {
-      return res.status(409).json({ error: "Already liked" });
+    try {
+      await Like.create({ user, image });
+    } catch (err) {
+      // duplicate like
+      if (err.code === 11000) {
+        return res.status(409).json({ error: "Already liked" });
+      }
+      throw err;
     }
-
-    await Like.create({ user, image });
 
     res.json({
       success: true,
@@ -72,8 +73,7 @@ app.post("/api/like", async (req, res) => {
 });
 
 /* ==================================================
-   ADMIN API (VIEW ALL LIKES)
-   METHOD: GET
+   ADMIN API
 ================================================== */
 app.get("/api/admin", async (req, res) => {
   try {
