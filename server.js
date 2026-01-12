@@ -9,11 +9,10 @@ app.use(cors());
 app.use(express.json());
 
 /* ---------------- MONGODB CONNECTION ---------------- */
-mongoose
-  .connect(
-    process.env.MONGO_URI ||
-      "mongodb+srv://anything:save@cluster0.e0lxlj2.mongodb.net/test"
-  )
+mongoose.connect(
+  process.env.MONGO_URI ||
+  "mongodb+srv://anything:save@cluster0.e0lxlj2.mongodb.net/cartoon?retryWrites=true&w=majority"
+)
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB error:", err));
 
